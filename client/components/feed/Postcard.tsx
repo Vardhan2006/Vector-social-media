@@ -43,6 +43,7 @@ export default function PostCard({ post, setPost }: PostCardProps) {
     const [showEditModal, setShowEditModal] = useState(false);
     const [bookmarked, setBookmarked] = useState(post.isBookmarked ?? false);
     const [bookmarkLoading, setBookmarkLoading] = useState(false);
+    const [localLikes, setLocalLikes] = useState<Post["likes"]>(post.likes);
     type PostLike = Post["likes"][number];
     const currentUserLike =
         userData?.id
@@ -68,7 +69,7 @@ export default function PostCard({ post, setPost }: PostCardProps) {
                     .filter((entry): entry is [string, PostLike] => Boolean(entry[0]))
             ).values()
         );
-    const uniqueLikes = getUniqueLikes(post.likes);
+    const uniqueLikes = getUniqueLikes(localLikes);
     const likeCount = uniqueLikes.length;
 
     const isOwner = userData?.id === post?.author?._id;
@@ -111,6 +112,7 @@ export default function PostCard({ post, setPost }: PostCardProps) {
     }
 
     const handleLike = async () => {
+        const previousLikes = localLikes;
         try {
             // 🚨 guard: don't proceed if user id missing
             if (!userData?.id) {
@@ -128,6 +130,8 @@ export default function PostCard({ post, setPost }: PostCardProps) {
                 : getUniqueLikes([...uniqueLikes, currentUserLike ?? userData.id]);
 
             // ✅ update local state safely
+            setLocalLikes(updatedLikes);
+            
             if (setPost) {
                 setPost(prev =>
                     prev
@@ -154,6 +158,13 @@ export default function PostCard({ post, setPost }: PostCardProps) {
                 { withCredentials: true }
             );
         } catch {
+            // 🚨 revert optimistic update
+            setLocalLikes(previousLikes);
+            if (setPost) {
+                setPost(prev => prev ? { ...prev, likes: previousLikes } : prev);
+            } else {
+                setPosts(prev => prev.map(p => p._id === post._id ? { ...p, likes: previousLikes } : p));
+            }
             toast.error("Failed to like post");
         }
     };
@@ -224,6 +235,10 @@ export default function PostCard({ post, setPost }: PostCardProps) {
     useEffect(() => {
         setBookmarked(post.isBookmarked ?? false);
     }, [post.isBookmarked]);
+    
+    useEffect(() => {
+        setLocalLikes(post.likes);
+    }, [post.likes]);
 
     // prevent crash if author missing
     if (!post?.author) return null;
