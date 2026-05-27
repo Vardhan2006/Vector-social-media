@@ -243,7 +243,7 @@ export const toggleFollowUser = async (req, res) => {
                 const result = await Follow.findOneAndUpdate(
                     { follower: currentUserId, following: targetUserId },
                     { $setOnInsert: { follower: currentUserId, following: targetUserId, status: "pending" } },
-                    { upsert: true, new: true, rawResult: true }
+                    { upsert: true, returnDocument: 'after', includeResultMetadata: true }
                 );
                 // Only send notification if we actually created a new document
                 if (result.lastErrorObject?.upserted) {
@@ -263,7 +263,7 @@ export const toggleFollowUser = async (req, res) => {
                 const result = await Follow.findOneAndUpdate(
                     { follower: currentUserId, following: targetUserId },
                     { $setOnInsert: { follower: currentUserId, following: targetUserId, status: "accepted" } },
-                    { upsert: true, new: true, rawResult: true }
+                    { upsert: true, returnDocument: 'after', includeResultMetadata: true }
                 );
                 if (result.lastErrorObject?.upserted) {
                     await User.updateOne({ _id: currentUserId }, { $inc: { followingCount: 1 } });
