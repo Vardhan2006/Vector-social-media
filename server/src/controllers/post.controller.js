@@ -28,7 +28,11 @@ export const removePostById = async (postId) => {
     }
 
     if (post.imagePublicId) {
-        await cloudinary.uploader.destroy(post.imagePublicId);
+        try {
+            await cloudinary.uploader.destroy(post.imagePublicId);
+        } catch (error) {
+            console.error("Failed to delete post image from Cloudinary:", error);
+        }
     }
 
     return post;

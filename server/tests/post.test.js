@@ -547,4 +547,63 @@ describe('Post and Comment Flows', () => {
       expect(res.body.posts).toEqual([]);
     });
   });
+
+  describe('Delete Post', () => {
+    it('should delete a post successfully and call cloudinary destroy', async () => {
+      const newPost = await Post.create({
+        author: user._id,
+        content: "Delete test content",
+        intent: "share",
+        image: "https://res.cloudinary.com/dummy-cloud/image/upload/v12345/posts/dummy_image.png",
+        imagePublicId: "posts/dummy_image_public_id"
+      });
+
+      mockDestroy.mockClear();
+      mockDestroy.mockResolvedValue({ result: 'ok' });
+
+      const res = await request(app)
+        .delete(`/api/posts/${newPost._id}`)
+        .set('Cookie', cookie);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toContain('deleted successfully');
+      
+      const dbPost = await Post.findById(newPost._id);
+      expect(dbPost).toBeNull();
+      
+      expect(mockDestroy).toHaveBeenCalledWith('posts/dummy_image_public_id');
+    });
+
+    it('should delete a post successfully even when cloudinary destroy fails', async () => {
+      const newPost = await Post.create({
+        author: user._id,
+        content: "Delete test content with failing cloudinary",
+        intent: "share",
+        image: "https://res.cloudinary.com/dummy-cloud/image/upload/v12345/posts/dummy_image.png",
+        imagePublicId: "posts/dummy_image_public_id"
+      });
+
+      mockDestroy.mockClear();
+      mockDestroy.mockRejectedValue(new Error('Cloudinary destroy failure'));
+
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      const res = await request(app)
+        .delete(`/api/posts/${newPost._id}`)
+        .set('Cookie', cookie);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toContain('deleted successfully');
+
+      const dbPost = await Post.findById(newPost._id);
+      expect(dbPost).toBeNull();
+
+      expect(mockDestroy).toHaveBeenCalledWith('posts/dummy_image_public_id');
+
+      consoleErrorSpy.mockRestore();
+    });
+  });
 });
+
