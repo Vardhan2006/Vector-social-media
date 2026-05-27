@@ -157,7 +157,7 @@ export default function PostCard({ post, setPost }: PostCardProps) {
                 {},
                 { withCredentials: true }
             );
-        } catch {
+        } catch (error) {
             // 🚨 revert optimistic update
             setLocalLikes(previousLikes);
             if (setPost) {
@@ -165,7 +165,11 @@ export default function PostCard({ post, setPost }: PostCardProps) {
             } else {
                 setPosts(prev => prev.map(p => p._id === post._id ? { ...p, likes: previousLikes } : p));
             }
-            toast.error("Failed to like post");
+            if (axios.isAxiosError(error) && error.response?.status === 403) {
+                toast.error("Action blocked");
+            } else {
+                toast.error("Failed to like post");
+            }
         }
     };
 
@@ -320,9 +324,13 @@ export default function PostCard({ post, setPost }: PostCardProps) {
             );
         }
         toast.success(res.data.bookmarked ? "Post saved" : "Removed from saved");
-        } catch {
+        } catch (error) {
         setBookmarked((prev) => !prev); // revert
-        toast.error("Failed to update bookmark");
+        if (axios.isAxiosError(error) && error.response?.status === 403) {
+            toast.error("Action blocked");
+        } else {
+            toast.error("Failed to update bookmark");
+        }
         } finally {
         setBookmarkLoading(false);
         }
