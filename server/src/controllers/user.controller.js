@@ -9,8 +9,10 @@ import Post from "../models/post.model.js";
 import Comment from "../models/comment.model.js";
 import { getIO } from "../socket/socket.js";
 import { uploadToCloudinary } from "../utils/uploadCleanup.js";
+import { cleanupTempUpload, IMAGE_UPLOAD_LIMITS, validateImageUpload } from "../utils/imageUploadValidation.js";
 
 export const uploadAvatar = async (req, res) => {
+    let avatarPublicId = null;
     try {
         if (!req.file) {
             return res.status(400).json({
@@ -19,20 +21,11 @@ export const uploadAvatar = async (req, res) => {
             });
         }
 
-        const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-        if (!allowedTypes.includes(req.file.mimetype)) {
-            return res.status(400).json({
-                success: false,
-                message: "Only JPEG, PNG and WEBP images are allowed",
-            });
-        }
-
-        if (req.file.size > 5 * 1024 * 1024) {
-            return res.status(400).json({
-                success: false,
-                message: "File size must be under 5MB",
-            });
-        }
+        await validateImageUpload(req.file, {
+            allowedFormats: ["jpeg", "png", "webp"],
+            maxSize: IMAGE_UPLOAD_LIMITS.avatar,
+            label: "Avatar",
+        });
 
         const user = await User.findById(req.user.id);
         if (!user) {
@@ -48,6 +41,7 @@ export const uploadAvatar = async (req, res) => {
                 { quality: "auto" },
             ],
         });
+        avatarPublicId = uploadResult.public_id;
         if (user.avatarPublicId) {
             await cloudinary.uploader.destroy(user.avatarPublicId).catch(() => {});
         }
@@ -59,7 +53,11 @@ export const uploadAvatar = async (req, res) => {
             avatar: user.avatar,
         });
     } catch (error) {
-        return res.status(500).json({
+        await cleanupTempUpload(req.file);
+        if (avatarPublicId) {
+            await cloudinary.uploader.destroy(avatarPublicId).catch(() => {});
+        }
+        return res.status(error.statusCode || 500).json({
             success: false,
             message: error.message,
         });

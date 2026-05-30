@@ -8,6 +8,7 @@ import Report from "../models/report.model.js";
 import cloudinary from "../config/cloudinary.js";
 import { getIO } from "../socket/socket.js";
 import { uploadToCloudinary } from "../utils/uploadCleanup.js";
+import { cleanupTempUpload, IMAGE_UPLOAD_LIMITS, validateImageUpload } from "../utils/imageUploadValidation.js";
 
 export const removePostById = async (postId) => {
     const post = await Post.findById(postId);
@@ -61,6 +62,11 @@ export const createPost = async (req, res) => {
         let image = null;
 
         if (req.file) {
+            await validateImageUpload(req.file, {
+                allowedFormats: ["jpeg", "png", "gif", "webp", "avif"],
+                maxSize: IMAGE_UPLOAD_LIMITS.post,
+                label: "Post image",
+            });
             const uploadResult = await uploadToCloudinary(req.file, {
                 folder: "posts"
             });
@@ -82,10 +88,11 @@ export const createPost = async (req, res) => {
             post: populatedPost
         });
     } catch (error) {
+        await cleanupTempUpload(req.file);
         if (imagePublicId) {
             await cloudinary.uploader.destroy(imagePublicId).catch(() => {});
         }
-        return res.status(500).json({
+        return res.status(error.statusCode || 500).json({
             success: false,
             message: error.message
         })
@@ -275,6 +282,7 @@ export const deletePost = async (req, res) => {
 };
 
 export const updatePost = async (req, res) => {
+    let newImagePublicId = null;
     try {
         const postId = req.params.id;
         const userId = req.user.id;
@@ -328,14 +336,20 @@ export const updatePost = async (req, res) => {
         }
 
         if (req.file) {
+            await validateImageUpload(req.file, {
+                allowedFormats: ["jpeg", "png", "gif", "webp", "avif"],
+                maxSize: IMAGE_UPLOAD_LIMITS.post,
+                label: "Post image",
+            });
             const uploadResult = await uploadToCloudinary(req.file, {
                 folder: "posts",
             });
+            newImagePublicId = uploadResult.public_id;
             if (post.imagePublicId) {
                 await cloudinary.uploader.destroy(post.imagePublicId).catch(() => {});
             }
             post.image = uploadResult.secure_url;
-            post.imagePublicId = uploadResult.public_id;
+            post.imagePublicId = newImagePublicId;
         } else if (shouldRemoveImage && post.imagePublicId) {
             await cloudinary.uploader.destroy(post.imagePublicId);
             post.image = null;
@@ -356,7 +370,11 @@ export const updatePost = async (req, res) => {
             post: populatedPost,
         });
     } catch (error) {
-        res.status(500).json({
+        await cleanupTempUpload(req.file);
+        if (newImagePublicId) {
+            await cloudinary.uploader.destroy(newImagePublicId).catch(() => {});
+        }
+        res.status(error.statusCode || 500).json({
             success: false,
             message: error.message,
         });
