@@ -18,6 +18,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import InlineLoader from "@/components/loaders/InlineLoader";
 import type { Intent } from "@/lib/types";
+import { getErrorMessage } from "@/lib/error";
 
 type User = {
   _id: string;
@@ -143,14 +144,7 @@ export default function Explore() {
 
         setTopPosts(data.posts || []);
       } catch (error: unknown) {
-        if (axios.isAxiosError(error)) {
-          toast.error(
-            error.response?.data?.message ||
-            "Failed to load explore data"
-          );
-        } else {
-          toast.error("Failed to load explore data");
-        }
+        toast.error(getErrorMessage(error, "Failed to load explore data"));
       } finally {
         setLoading(false);
       }
@@ -210,10 +204,7 @@ export default function Explore() {
         };
       });
     } catch (error: unknown) {
-      const message = axios.isAxiosError(error)
-        ? error.response?.data?.message || "Failed to update follow status"
-        : "Failed to update follow status";
-      toast.error(message);
+      toast.error(getErrorMessage(error, "Failed to update follow status"));
     }
   };
 
@@ -560,7 +551,7 @@ export default function Explore() {
                   {topicCards.map((topic) => (
                     <div
                       key={topic.intent}
-                      className={`${exploreGridCard} relative min-h-[10rem] overflow-hidden`}
+                      className={`${exploreGridCard} relative min-h-40 overflow-hidden`}
                     >
                       <p className="absolute bottom-0 left-0 z-20 flex w-full items-center justify-between bg-black/40 p-2 text-sm text-white">
                         <span className="flex min-w-0 items-center gap-2">
@@ -574,7 +565,7 @@ export default function Explore() {
                         alt={topic.label}
                         width={400}
                         height={240}
-                        className="h-full min-h-[10rem] w-full object-cover"
+                        className="h-full min-h-40 w-full object-cover"
                       />
                     </div>
                   ))}
